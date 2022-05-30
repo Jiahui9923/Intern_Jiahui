@@ -1,34 +1,58 @@
 package main
 
-
 import (
     "fmt"
     "log"
     "net/http"
+
+    "github.com/gorilla/websocket"
 )
 
-func helloHandler(w http.ResponseWriter, r *http.Request) {
-    if r.URL.Path != "/" {
-        http.Error(w, "404 not found.", http.StatusNotFound)
-        return
-    }
 
-    if r.Method != "GET" {
-        http.Error(w, "Method is not supported.", http.StatusNotFound)
-        return
-    }
+var upgrader = websocket.Upgrader{
+    ReadBufferSize:  1024,
+  WriteBufferSize: 1024,
 
-
-    fmt.Fprintf(w, "Hello THERE!")
+  CheckOrigin: func(r *http.Request) bool { return true },
 }
 
 
-func main() {
-    http.HandleFunc("/", helloHandler) // Update this line of code
+func reader(conn *websocket.Conn) {
+    for {
+        messageType, p, err := conn.ReadMessage()
+        if err != nil {
+            log.Println(err)
+            return
+        }
+        fmt.Println(string(p))
 
+        if err := conn.WriteMessage(messageType, p); err != nil {
+            log.Println(err)
+            return
+        }
 
-    fmt.Printf("Starting server at port 8080\n")
-    if err := http.ListenAndServe(":8080", nil); err != nil {
-        log.Fatal(err)
     }
+}
+
+func serveWs(w http.ResponseWriter, r *http.Request) {
+    fmt.Println(r.Host)
+
+    ws, err := upgrader.Upgrade(w, r, nil)
+    if err != nil {
+        log.Println(err)
+  }
+    reader(ws)
+}
+
+func setupRoutes() {
+  http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        fmt.Fprintf(w, "Simple Server")
+  })
+    http.HandleFunc("/ws", serveWs)
+}
+
+func main() {
+    fmt.Println("Check V 0.0.1")
+    setupRoutes()
+    http.ListenAndServe(":8080", nil)
 }
